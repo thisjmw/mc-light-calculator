@@ -1,21 +1,24 @@
 <template>
-	<div>
-		<table>
-			<tbody>
-				<tr v-for="(row, y) in grid" :key="'row' + y">
-					<td v-for="(block, x) in row" :key="x + ',' + y" @click="addLight(x, y)">
-						{{ block }}
-					</td>
-				</tr>
-			</tbody>
-		</table>
+	<div class="grid-container" :style="gridLayout">
+		<div
+			class="block"
+			:class="lightStyle(block)"
+			v-for="(block, index) in grid"
+			:key="index"
+			@click="clicked(index)"
+		>
+			{{ block }}
+		</div>
 	</div>
 </template>
 
 <script>
 	export default {
 		name: 'LightGrid',
-		emits: ['add-light'],
+		emits: [
+			'add-light',
+			'remove-light'
+		],
 		props: {
 			width: {
 				type: Number,
@@ -25,9 +28,7 @@
 				type: Number,
 				validator: n => n > 0
 			},
-			lights: {
-				type: Array
-			}
+			lights: Array
 		},
 		data() {
 			return {
@@ -45,19 +46,31 @@
 						blocks[y][x] = 0
 					}
 				}
-
-				return this.calculateLightning(blocks)
+				return this.calculateLighting(blocks)
+			},
+			gridLayout() {
+				return {
+					gridTemplateColumns: `repeat(${this.width}, 1.2rem)`
+				}
+			},
+			lightCoordinates() {
+				const lightCoordinatesMap = {}
+				for (const light of this.lights) {
+					lightCoordinatesMap[this.coordinatesToIndex(light.x, light.y)] = light
+				}
+				return lightCoordinatesMap
 			}
 		},
 		methods: {
-			calculateLightning(blocks) {
+			calculateLighting(blocks) {
+				// TODO: Find ways to make this more efficient
 				let retBlocks = [...blocks]
 				this.processed = 0
 				this.updated = 0
 				this.duplicated = 0
 
 				if (!this.lights.length) {
-					return blocks
+					return blocks.flat()
 				}
 
 				const queue = []
@@ -98,17 +111,74 @@
 					currentBlock = queue.shift()
 				}
 
-				return retBlocks
+				return retBlocks.flat()
 			},
-			addLight(x, y) {
-				this.$emit('add-light', { x, y })
+			clicked(index) {
+				if (this.isLight(index)) {
+					this.$emit('remove-light', this.indexToCoordinates(index))
+				} else {
+					this.$emit('add-light', this.indexToCoordinates(index))
+				}
+			},
+			lightStyle(lightLevel) {
+				const lightClass = `light-${lightLevel}`
+				return {
+					[lightClass]: true,
+					danger: lightLevel < 8
+				}
+			},
+			indexToCoordinates(index) {
+				const y = Math.floor(index / this.width)
+				const x = index - (y * this.width)
+				return { x, y }
+			},
+			coordinatesToIndex(x, y) {
+				return x + (y * this.width)
+			},
+			isLight(index) {
+				return !!this.lightCoordinates[index]
 			}
 		}
 	}
 </script>
 
 <style scoped>
-td {
-	cursor: pointer
-}
+	.grid-container {
+		display: grid;
+	}
+
+	.block {
+		height: 1.2rem;
+		cursor: pointer;
+		text-align: center;
+		font-size: 0.8rem;
+		line-height: 1.2rem;
+	}
+
+	.block:hover {
+		background-color: white;
+	}
+
+	/* TODO: Remove unused selector code warnings */
+
+	.light-15 { background-color: #fddf6c; }
+	.light-14 { background-color: #efca5b; }
+	.light-13 { background-color: #e1b54b; }
+	.light-12 { background-color: #d3a13c; }
+	.light-11 { background-color: #c48d2d; }
+	.light-10 { background-color: #b5791f; }
+	.light-9  { background-color: #a66610; }
+	.light-8  { background-color: #965300; }
+	.light-7  { background-color: #88450d; }
+	.light-6  { background-color: #783914; }
+	.light-5  { background-color: #662e17; }
+	.light-4  { background-color: #542518; }
+	.light-3  { background-color: #421d16; }
+	.light-2  { background-color: #2f1613; }
+	.light-1  { background-color: #1d0e0c; }
+	.light-0  { background-color: #000000; }
+
+	.danger {
+		color: white;
+	}
 </style>
