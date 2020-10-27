@@ -1,6 +1,9 @@
 <template>
 	<div id="app">
-		<LightGridControlSelector @change-control="changeControl" />
+		<LightGridControlSelector
+			@change-control="changeControl"
+			@reset="reset"
+		/>
 		<LightGrid
 			:width="gridWidth"
 			:height="gridHeight"
@@ -19,6 +22,7 @@
 <script>
 	import LightGrid from './components/LightGrid'
 	import LightGridControlSelector from './components/LightGridControlSelector'
+	import { blockTypeEnum } from './data'
 
 	export default {
 		name: 'App',
@@ -32,7 +36,7 @@
 				walls: [],
 				gridWidth: 40,
 				gridHeight: 40,
-				controlType: 'light' // TODO: Better control selection
+				controlType: blockTypeEnum.LIGHT
 			}
 		},
 		methods: {
@@ -50,6 +54,7 @@
 			},
 			reset() {
 				this.lights = []
+				this.walls = []
 			},
 			changeControl(controlType) {
 				this.controlType = controlType

@@ -7,18 +7,13 @@
 			:key="index"
 			@click="clicked(index)"
 		>
-			{{ block.type !== blockTypeEnum.wall ? block.strength : '' }}
+			{{ block.type !== blockTypeEnum.WALL ? block.strength : '' }}
 		</div>
 	</div>
 </template>
 
 <script>
-	// TODO: Proper enum
-	const blockTypeEnum = {
-		normal: 1,
-		light: 2,
-		wall: 3
-	}
+	import { blockTypeEnum } from '../data'
 
 	export default {
 		name: 'LightGrid',
@@ -39,7 +34,7 @@
 			},
 			lights: Array,
 			walls: Array,
-			control: String
+			control: Number
 		},
 		data() {
 			return {
@@ -55,7 +50,7 @@
 				for (let y = 0; y < this.height; y++) {
 					blocks[y] = []
 					for (let x = 0; x < this.width; x++) {
-						blocks[y][x] = { strength: 0, type: blockTypeEnum.normal }
+						blocks[y][x] = { strength: 0, type: blockTypeEnum.NORMAL }
 					}
 				}
 				return this.calculateLighting(blocks)
@@ -94,11 +89,11 @@
 				const queue = []
 
 				for (const wall of this.walls) {
-					queue.push({ type: blockTypeEnum.wall, x: wall.x, y: wall.y })
+					queue.push({ type: blockTypeEnum.WALL, x: wall.x, y: wall.y })
 				}
 
 				for (const light of this.lights) {
-					queue.push({ type: blockTypeEnum.light, x: light.x, y: light.y, strength: light.strength })
+					queue.push({ type: blockTypeEnum.LIGHT, x: light.x, y: light.y, strength: light.strength })
 				}
 
 				let currentBlock = queue.shift()
@@ -107,7 +102,7 @@
 					this.processed++
 					const {x, y, type} = currentBlock
 
-					if (type === blockTypeEnum.wall) {
+					if (type === blockTypeEnum.WALL) {
 						this.updated++
 						blocks[y][x] = { type }
 					} else if (blocks[y][x].strength < currentBlock.strength) {
@@ -140,14 +135,14 @@
 			},
 			clicked(index) {
 				switch (this.control) {
-					case 'light':
+					case blockTypeEnum.LIGHT:
 						if (this.isLight(index)) {
 							this.$emit('remove-light', this.indexToCoordinates(index))
 						} else {
 							this.$emit('add-light', this.indexToCoordinates(index))
 						}
 						break
-					case 'wall':
+					case blockTypeEnum.WALL:
 						if (this.isWall(index)) {
 							this.$emit('remove-wall', this.indexToCoordinates(index))
 						} else {
@@ -159,10 +154,10 @@
 			lightStyle(block) {
 				const lightClass = `light-${block.strength}`
 				return {
-					light: block.type === blockTypeEnum.light,
-					[lightClass]: block.type !== blockTypeEnum.wall,
-					wall: block.type === blockTypeEnum.wall,
-					danger: block.type !== blockTypeEnum.wall && block.strength < 8
+					light: block.type === blockTypeEnum.LIGHT,
+					[lightClass]: block.type !== blockTypeEnum.WALL,
+					wall: block.type === blockTypeEnum.WALL,
+					danger: block.type !== blockTypeEnum.WALL && block.strength < 8
 				}
 			},
 			indexToCoordinates(index) {

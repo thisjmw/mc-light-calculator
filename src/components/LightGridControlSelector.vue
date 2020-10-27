@@ -1,22 +1,28 @@
 <template>
 	<div>
-		<input type="radio" id="light-control" value="light" v-model="control">
+		<input type="radio" id="light-control" :value="blockTypeEnum.LIGHT" v-model="control">
 		<label for="light-control">Light</label>
 		<br />
-		<input type="radio" id="wall-control" value="wall" v-model="control">
+		<input type="radio" id="wall-control" :value="blockTypeEnum.WALL" v-model="control">
 		<label for="wall-control">Wall</label>
+		<br />
+		<button @click="$emit('reset')">Reset</button>
 	</div>
 </template>
 
 <script>
+	import { blockTypeEnum } from '../data'
+
 	export default {
 		name: 'LightGridControlSelector',
 		emits: [
-			'change-control'
+			'change-control',
+			'reset'
 		],
 		data() {
 			return {
-				control: 'light'
+				control: blockTypeEnum.LIGHT,
+				blockTypeEnum
 			}
 		},
 		watch: {
