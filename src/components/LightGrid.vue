@@ -7,17 +7,26 @@
 			:key="index"
 			@click="clicked(index)"
 		>
-			{{ block }}
+			{{ block.type !== blockTypeEnum.wall ? block.strength : '' }}
 		</div>
 	</div>
 </template>
 
 <script>
+	// TODO: Proper enum
+	const blockTypeEnum = {
+		normal: 1,
+		light: 2,
+		wall: 3
+	}
+
 	export default {
 		name: 'LightGrid',
 		emits: [
 			'add-light',
-			'remove-light'
+			'remove-light',
+			'add-wall',
+			'remove-wall'
 		],
 		props: {
 			width: {
@@ -28,22 +37,25 @@
 				type: Number,
 				validator: n => n > 0
 			},
-			lights: Array
+			lights: Array,
+			walls: Array,
+			control: String
 		},
 		data() {
 			return {
 				processed: 0,
 				updated: 0,
-				duplicated: 0
+				duplicated: 0,
+				blockTypeEnum
 			}
 		},
 		computed: {
 			grid() {
-				let blocks = []
+				const blocks = []
 				for (let y = 0; y < this.height; y++) {
 					blocks[y] = []
 					for (let x = 0; x < this.width; x++) {
-						blocks[y][x] = 0
+						blocks[y][x] = { strength: 0, type: blockTypeEnum.normal }
 					}
 				}
 				return this.calculateLighting(blocks)
@@ -59,49 +71,62 @@
 					lightCoordinatesMap[this.coordinatesToIndex(light.x, light.y)] = light
 				}
 				return lightCoordinatesMap
+			},
+			wallCoordinates() {
+				const wallCoordinatesMap = {}
+				for (const wall of this.walls) {
+					wallCoordinatesMap[this.coordinatesToIndex(wall.x, wall.y)] = wall
+				}
+				return wallCoordinatesMap
 			}
 		},
 		methods: {
 			calculateLighting(blocks) {
 				// TODO: Find ways to make this more efficient
-				let retBlocks = [...blocks]
 				this.processed = 0
 				this.updated = 0
 				this.duplicated = 0
 
-				if (!this.lights.length) {
+				if (!this.lights.length && !this.walls.length) {
 					return blocks.flat()
 				}
 
 				const queue = []
 
+				for (const wall of this.walls) {
+					queue.push({ type: blockTypeEnum.wall, x: wall.x, y: wall.y })
+				}
+
 				for (const light of this.lights) {
-					queue.push({ x: light.x, y: light.y, strength: light.strength })
+					queue.push({ type: blockTypeEnum.light, x: light.x, y: light.y, strength: light.strength })
 				}
 
 				let currentBlock = queue.shift()
 
 				while (currentBlock) {
 					this.processed++
-					const {x, y, strength} = currentBlock
-					const blockLight = retBlocks[y][x]
+					const {x, y, type} = currentBlock
 
-					if (blockLight < strength) {
+					if (type === blockTypeEnum.wall) {
 						this.updated++
-						retBlocks[y][x] = strength
+						blocks[y][x] = { type }
+					} else if (blocks[y][x].strength < currentBlock.strength) {
+						this.updated++
+						const strength = currentBlock.strength
+						blocks[y][x] = { strength, type }
 						if (strength > 1) {
 							const nextStrength = strength - 1
-							if (y > 0 && retBlocks[y - 1][x] < nextStrength) {
-								queue.push({ x, y: y - 1, strength: nextStrength })
+							if (y > 0 && blocks[y - 1][x].strength < nextStrength) {
+								queue.push({ x, y: y - 1, strength: nextStrength, type: blocks[y - 1][x].type })
 							}
-							if (x < this.width - 1 && retBlocks[y][x + 1] < nextStrength) {
-								queue.push({ x: x + 1, y, strength: nextStrength })
+							if (x < this.width - 1 && blocks[y][x + 1].strength < nextStrength) {
+								queue.push({ x: x + 1, y, strength: nextStrength, type: blocks[y][x + 1].type })
 							}
-							if (y < this.height - 1 && retBlocks[y + 1][x] < nextStrength) {
-								queue.push({ x, y: y + 1, strength: nextStrength })
+							if (y < this.height - 1 && blocks[y + 1][x].strength < nextStrength) {
+								queue.push({ x, y: y + 1, strength: nextStrength, type: blocks[y + 1][x].type })
 							}
-							if (x > 0 && retBlocks[y][x - 1] < nextStrength) {
-								queue.push({ x: x - 1, y, strength: nextStrength })
+							if (x > 0 && blocks[y][x - 1].strength < nextStrength) {
+								queue.push({ x: x - 1, y, strength: nextStrength, type: blocks[y][x - 1].type })
 							}
 						}
 					} else {
@@ -111,20 +136,33 @@
 					currentBlock = queue.shift()
 				}
 
-				return retBlocks.flat()
+				return blocks.flat()
 			},
 			clicked(index) {
-				if (this.isLight(index)) {
-					this.$emit('remove-light', this.indexToCoordinates(index))
-				} else {
-					this.$emit('add-light', this.indexToCoordinates(index))
+				switch (this.control) {
+					case 'light':
+						if (this.isLight(index)) {
+							this.$emit('remove-light', this.indexToCoordinates(index))
+						} else {
+							this.$emit('add-light', this.indexToCoordinates(index))
+						}
+						break
+					case 'wall':
+						if (this.isWall(index)) {
+							this.$emit('remove-wall', this.indexToCoordinates(index))
+						} else {
+							this.$emit('add-wall', this.indexToCoordinates(index))
+						}
+						break
 				}
 			},
-			lightStyle(lightLevel) {
-				const lightClass = `light-${lightLevel}`
+			lightStyle(block) {
+				const lightClass = `light-${block.strength}`
 				return {
-					[lightClass]: true,
-					danger: lightLevel < 8
+					light: block.type === blockTypeEnum.light,
+					[lightClass]: block.type !== blockTypeEnum.wall,
+					wall: block.type === blockTypeEnum.wall,
+					danger: block.type !== blockTypeEnum.wall && block.strength < 8
 				}
 			},
 			indexToCoordinates(index) {
@@ -137,6 +175,9 @@
 			},
 			isLight(index) {
 				return !!this.lightCoordinates[index]
+			},
+			isWall(index) {
+				return !!this.wallCoordinates[index]
 			}
 		}
 	}
@@ -155,11 +196,19 @@
 		line-height: 1.2rem;
 	}
 
+	.wall {
+		background-color: #555555;
+	}
+
 	.block:hover {
 		background-color: white;
 	}
 
 	/* TODO: Remove unused selector code warnings */
+
+	.light {
+		background-color: white !important;
+	}
 
 	.light-15 { background-color: #fddf6c; }
 	.light-14 { background-color: #efca5b; }

@@ -1,29 +1,38 @@
 <template>
 	<div id="app">
+		<LightGridControlSelector @change-control="changeControl" />
 		<LightGrid
 			:width="gridWidth"
 			:height="gridHeight"
 			:lights="lights"
+			:walls="walls"
+			:control="controlType"
 			@add-light="addLight"
 			@remove-light="removeLight"
+			@add-wall="addWall"
+			@remove-wall="removeWall"
 			@reset="reset"
-		></LightGrid>
+		/>
 	</div>
 </template>
 
 <script>
 	import LightGrid from './components/LightGrid'
+	import LightGridControlSelector from './components/LightGridControlSelector'
 
 	export default {
 		name: 'App',
 		components: {
-			LightGrid
+			LightGrid,
+			LightGridControlSelector
 		},
 		data() {
 			return {
 				lights: [],
+				walls: [],
 				gridWidth: 40,
-				gridHeight: 40
+				gridHeight: 40,
+				controlType: 'light' // TODO: Better control selection
 			}
 		},
 		methods: {
@@ -33,8 +42,17 @@
 			removeLight(coordinates) {
 				this.lights = this.lights.filter(light => !(light.x === coordinates.x && light.y === coordinates.y))
 			},
+			addWall(coordinates) {
+				this.walls.push({ x: coordinates.x, y: coordinates.y })
+			},
+			removeWall(coordinates) {
+				this.walls = this.walls.filter(wall => !(wall.x === coordinates.x && wall.y === coordinates.y))
+			},
 			reset() {
 				this.lights = []
+			},
+			changeControl(controlType) {
+				this.controlType = controlType
 			}
 		}
 	}
