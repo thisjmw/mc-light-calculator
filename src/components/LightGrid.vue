@@ -134,19 +134,26 @@
 				return blocks.flat()
 			},
 			clicked(index) {
+				const coordinates = this.indexToCoordinates(index)
 				switch (this.control) {
 					case blockTypeEnum.LIGHT:
 						if (this.isLight(index)) {
-							this.$emit('remove-light', this.indexToCoordinates(index))
+							this.$emit('remove-light', coordinates)
 						} else {
-							this.$emit('add-light', this.indexToCoordinates(index))
+							this.$emit('add-light', coordinates)
+							if (this.isWall(index)) {
+								this.$emit('remove-wall', coordinates)
+							}
 						}
 						break
 					case blockTypeEnum.WALL:
 						if (this.isWall(index)) {
-							this.$emit('remove-wall', this.indexToCoordinates(index))
+							this.$emit('remove-wall', coordinates)
 						} else {
-							this.$emit('add-wall', this.indexToCoordinates(index))
+							this.$emit('add-wall', coordinates)
+							if (this.isLight(index)) {
+								this.$emit('remove-light', coordinates)
+							}
 						}
 						break
 				}
