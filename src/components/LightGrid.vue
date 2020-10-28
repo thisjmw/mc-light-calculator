@@ -1,11 +1,13 @@
 <template>
-	<div class="grid-container" :style="gridLayout">
+	<div class="grid-container" :style="gridLayout" @mouseleave="mouseLeft">
 		<div
 			class="block"
 			:class="blockStyle(block)"
 			v-for="(block, index) in grid"
 			:key="index"
-			@click="clicked(index)"
+			@mousedown="mouseDown(index)"
+			@mouseenter="dragging ? mouseEnter(index) : null"
+			@mouseup="mouseUp"
 		>
 			<template v-if="gridView === gridViewEnum.LIGHT">
 				{{ block.type !== blockTypeEnum.WALL ? block.strength : '' }}
@@ -20,7 +22,8 @@
 <script>
 	import {
 		blockTypeEnum,
-		gridViewEnum
+		gridViewEnum,
+		dragBehaviorEnum
 	} from '../data'
 
 	export default {
@@ -53,7 +56,10 @@
 				updated: 0,
 				duplicated: 0,
 				blockTypeEnum,
-				gridViewEnum
+				gridViewEnum,
+				dragging: false,
+				dragHistory: [],
+				dragBehavior: dragBehaviorEnum.NONE
 			}
 		},
 		computed: {
@@ -221,6 +227,79 @@
 			},
 			isWall(index) {
 				return !!this.wallCoordinates[index]
+			},
+			mouseDown(index) {
+				this.dragging = true
+
+				switch (this.gridView) {
+					case gridViewEnum.LIGHT:
+						switch (this.control) {
+							case blockTypeEnum.LIGHT:
+								if (this.isLight(index)) {
+									this.dragBehavior = dragBehaviorEnum.REMOVE_LIGHT
+								} else {
+									this.dragBehavior = dragBehaviorEnum.ADD_LIGHT
+								}
+								break
+							case blockTypeEnum.WALL:
+								if (this.isWall(index)) {
+									this.dragBehavior = dragBehaviorEnum.REMOVE_WALL
+								} else {
+									this.dragBehavior = dragBehaviorEnum.ADD_WALL
+								}
+								break
+						}
+						break
+					case gridViewEnum.ELEVATION:
+						this.dragBehavior = dragBehaviorEnum.INCREASE_ELEVATION
+						break
+				}
+
+				if (this.dragBehavior !== dragBehaviorEnum.INCREASE_ELEVATION) {
+					this.dragHistory.push(index)
+				}
+				this.clicked(index)
+			},
+			mouseUp() {
+				this.dragging = false
+				this.dragHistory = []
+				this.dragBehavior = dragBehaviorEnum.NONE
+			},
+			mouseEnter(index) {
+				if (this.dragBehavior === dragBehaviorEnum.INCREASE_ELEVATION) {
+					this.clicked(index)
+				} else {
+					if (!~this.dragHistory.indexOf(index)) {
+						this.dragHistory.push(index)
+						switch (this.dragBehavior) {
+							case dragBehaviorEnum.ADD_LIGHT:
+								if (!this.isLight(index)) {
+									this.clicked(index)
+								}
+								break
+							case dragBehaviorEnum.REMOVE_LIGHT:
+								if (this.isLight(index)) {
+									this.clicked(index)
+								}
+								break
+							case dragBehaviorEnum.ADD_WALL:
+								if (!this.isWall(index)) {
+									this.clicked(index)
+								}
+								break
+							case dragBehaviorEnum.REMOVE_WALL:
+								if (this.isWall(index)) {
+									this.clicked(index)
+								}
+								break
+						}
+					}
+				}
+			},
+			mouseLeft() {
+				if (this.dragging) {
+					this.mouseUp()
+				}
 			}
 		}
 	}
