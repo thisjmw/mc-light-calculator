@@ -2,18 +2,26 @@
 	<div class="grid-container" :style="gridLayout">
 		<div
 			class="block"
-			:class="lightStyle(block)"
+			:class="blockStyle(block)"
 			v-for="(block, index) in grid"
 			:key="index"
 			@click="clicked(index)"
 		>
-			{{ block.type !== blockTypeEnum.WALL ? block.strength : '' }}
+			<template v-if="gridView === gridViewEnum.LIGHT">
+				{{ block.type !== blockTypeEnum.WALL ? block.strength : '' }}
+			</template>
+			<template v-else-if="gridView === gridViewEnum.ELEVATION">
+				{{ block.type !== blockTypeEnum.WALL ? block.elevation : '' }}
+			</template>
 		</div>
 	</div>
 </template>
 
 <script>
-	import { blockTypeEnum } from '../data'
+	import {
+		blockTypeEnum,
+		gridViewEnum
+	} from '../data'
 
 	export default {
 		name: 'LightGrid',
@@ -21,7 +29,8 @@
 			'add-light',
 			'remove-light',
 			'add-wall',
-			'remove-wall'
+			'remove-wall',
+			'increase-elevation'
 		],
 		props: {
 			width: {
@@ -34,14 +43,17 @@
 			},
 			lights: Array,
 			walls: Array,
-			control: Number
+			elevations: Object,
+			control: Number, // blockTypeEnum
+			gridView: Number // gridViewEnum
 		},
 		data() {
 			return {
 				processed: 0,
 				updated: 0,
 				duplicated: 0,
-				blockTypeEnum
+				blockTypeEnum,
+				gridViewEnum
 			}
 		},
 		computed: {
@@ -50,7 +62,8 @@
 				for (let y = 0; y < this.height; y++) {
 					blocks[y] = []
 					for (let x = 0; x < this.width; x++) {
-						blocks[y][x] = { strength: 0, type: blockTypeEnum.NORMAL }
+						const elevation = this.elevations[`${x},${y}`] || 0
+						blocks[y][x] = { strength: 0, type: blockTypeEnum.NORMAL, elevation }
 					}
 				}
 				return this.calculateLighting(blocks)
@@ -89,40 +102,32 @@
 				const queue = []
 
 				for (const wall of this.walls) {
-					queue.push({ type: blockTypeEnum.WALL, x: wall.x, y: wall.y })
+					queue.push({ type: blockTypeEnum.WALL, x: wall.x, y: wall.y, elevation: 99 }) // TODO: Handle elevation differently
 				}
 
 				for (const light of this.lights) {
-					queue.push({ type: blockTypeEnum.LIGHT, x: light.x, y: light.y, strength: light.strength })
+					queue.push({ ...light, type: blockTypeEnum.LIGHT })
 				}
 
 				let currentBlock = queue.shift()
 
 				while (currentBlock) {
 					this.processed++
-					const {x, y, type} = currentBlock
+					const {x, y, elevation, type} = currentBlock
 
 					if (type === blockTypeEnum.WALL) {
 						this.updated++
-						blocks[y][x] = { type }
+						blocks[y][x] = { type, elevation }
 					} else if (blocks[y][x].strength < currentBlock.strength) {
 						this.updated++
 						const strength = currentBlock.strength
-						blocks[y][x] = { strength, type }
+						blocks[y][x] = { strength, type, elevation }
 						if (strength > 1) {
-							const nextStrength = strength - 1
-							if (y > 0 && blocks[y - 1][x].strength < nextStrength) {
-								queue.push({ x, y: y - 1, strength: nextStrength, type: blocks[y - 1][x].type })
-							}
-							if (x < this.width - 1 && blocks[y][x + 1].strength < nextStrength) {
-								queue.push({ x: x + 1, y, strength: nextStrength, type: blocks[y][x + 1].type })
-							}
-							if (y < this.height - 1 && blocks[y + 1][x].strength < nextStrength) {
-								queue.push({ x, y: y + 1, strength: nextStrength, type: blocks[y + 1][x].type })
-							}
-							if (x > 0 && blocks[y][x - 1].strength < nextStrength) {
-								queue.push({ x: x - 1, y, strength: nextStrength, type: blocks[y][x - 1].type })
-							}
+							// Update neighbors starting at top and going clockwise
+							updateNeighbor(blocks, queue, x, y - 1, y > 0, currentBlock)
+							updateNeighbor(blocks, queue, x + 1, y, x < this.width - 1, currentBlock)
+							updateNeighbor(blocks, queue, x, y + 1, y < this.height - 1, currentBlock)
+							updateNeighbor(blocks, queue, x - 1, y, x > 0, currentBlock)
 						}
 					} else {
 						this.duplicated++
@@ -132,45 +137,81 @@
 				}
 
 				return blocks.flat()
+
+				function updateNeighbor(blocks, queue, x, y, condition, currentBlock) {
+					if (condition && blocks[y][x].strength < currentBlock.strength - 1) {
+						const nextElevation = blocks[y][x].elevation
+						const dElevation = Math.abs(nextElevation - currentBlock.elevation)
+						const nextStrength = currentBlock.strength - 1 - dElevation
+						if (nextStrength > 1 && nextStrength > blocks[y][x].strength) {
+							queue.push({
+								x,
+								y,
+								elevation: nextElevation,
+								strength: nextStrength,
+								type: blocks[y][x].type
+							})
+						}
+					}
+				}
 			},
+
 			clicked(index) {
+				// TODO: Make this less ugly
 				const coordinates = this.indexToCoordinates(index)
-				switch (this.control) {
-					case blockTypeEnum.LIGHT:
-						if (this.isLight(index)) {
-							this.$emit('remove-light', coordinates)
-						} else {
-							this.$emit('add-light', coordinates)
-							if (this.isWall(index)) {
-								this.$emit('remove-wall', coordinates)
-							}
+				switch (this.gridView) {
+					case gridViewEnum.LIGHT:
+						switch (this.control) {
+							case blockTypeEnum.LIGHT:
+								if (this.isLight(index)) {
+									this.$emit('remove-light', coordinates)
+								} else {
+									this.$emit('add-light', coordinates)
+									if (this.isWall(index)) {
+										this.$emit('remove-wall', coordinates)
+									}
+								}
+								break
+							case blockTypeEnum.WALL:
+								if (this.isWall(index)) {
+									this.$emit('remove-wall', coordinates)
+								} else {
+									this.$emit('add-wall', coordinates)
+									if (this.isLight(index)) {
+										this.$emit('remove-light', coordinates)
+									}
+								}
+								break
 						}
 						break
-					case blockTypeEnum.WALL:
-						if (this.isWall(index)) {
-							this.$emit('remove-wall', coordinates)
-						} else {
-							this.$emit('add-wall', coordinates)
-							if (this.isLight(index)) {
-								this.$emit('remove-light', coordinates)
-							}
-						}
+					case gridViewEnum.ELEVATION:
+						this.$emit('increase-elevation', coordinates)
 						break
 				}
 			},
-			lightStyle(block) {
+			blockStyle(block) {
 				const lightClass = `light-${block.strength}`
-				return {
-					light: block.type === blockTypeEnum.LIGHT,
-					[lightClass]: block.type !== blockTypeEnum.WALL,
-					wall: block.type === blockTypeEnum.WALL,
-					danger: block.type !== blockTypeEnum.WALL && block.strength < 8
+				const elevationClass = `elevation-${block.elevation > 3 ? 3 : block.elevation}`
+				switch (this.gridView) {
+					case gridViewEnum.LIGHT:
+						return {
+							light: block.type === blockTypeEnum.LIGHT,
+							[lightClass]: block.type !== blockTypeEnum.WALL,
+							wall: block.type === blockTypeEnum.WALL,
+							danger: block.type !== blockTypeEnum.WALL && block.strength < 8
+						}
+					case gridViewEnum.ELEVATION:
+						return {
+							elevation: true,
+							[elevationClass]: true
+						}
 				}
 			},
 			indexToCoordinates(index) {
 				const y = Math.floor(index / this.width)
 				const x = index - (y * this.width)
-				return { x, y }
+				const elevation = this.grid[index].elevation
+				return { x, y, elevation }
 			},
 			coordinatesToIndex(x, y) {
 				return x + (y * this.width)
@@ -196,6 +237,12 @@
 		text-align: center;
 		font-size: 0.8rem;
 		line-height: 1.2rem;
+		-webkit-touch-callout: none;
+		-webkit-user-select: none;
+		-khtml-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
+		user-select: none;
 	}
 
 	.wall {
@@ -229,7 +276,12 @@
 	.light-1  { background-color: #1d0e0c; }
 	.light-0  { background-color: #000000; }
 
-	.danger {
+	.elevation-0  { background-color: #000000; }
+	.elevation-1  { background-color: #222222; }
+	.elevation-2  { background-color: #444444; }
+	.elevation-3  { background-color: #666666; }
+
+	.danger, .elevation {
 		color: white;
 	}
 </style>
