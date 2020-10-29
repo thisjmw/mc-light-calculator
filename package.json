@@ -32,7 +32,9 @@
     "parserOptions": {
       "parser": "babel-eslint"
     },
-    "rules": {}
+    "rules": {
+	  "no-case-declarations": "off"
+	}
   },
   "browserslist": [
     "> 1%",

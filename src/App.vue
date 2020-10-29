@@ -50,13 +50,13 @@
 		},
 		methods: {
 			addLight(coordinates) {
-				this.lights.push({ ...coordinates, strength: 14 })
+				this.lights.push({ x: coordinates.x, y: coordinates.y, strength: 14 })
 			},
 			removeLight(coordinates) {
 				this.lights = this.lights.filter(light => !(light.x === coordinates.x && light.y === coordinates.y))
 			},
 			addWall(coordinates) {
-				this.walls.push({ ...coordinates })
+				this.walls.push({ x: coordinates.x, y: coordinates.y })
 			},
 			removeWall(coordinates) {
 				this.walls = this.walls.filter(wall => !(wall.x === coordinates.x && wall.y === coordinates.y))
@@ -67,13 +67,6 @@
 					this.elevations[key]++
 				} else {
 					this.$set(this.elevations, key, 1)
-				}
-				const qLightToUpdate = this.lights.filter(light => light.x === coordinates.x && light.y === coordinates.y)
-				if (qLightToUpdate.length) {
-					const updatedLight = { ...qLightToUpdate[0] }
-					updatedLight.elevation++
-					this.removeLight({ x: updatedLight.x, y: updatedLight.y })
-					this.addLight({ ...updatedLight })
 				}
 			},
 			reset() {

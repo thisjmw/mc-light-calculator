@@ -13,7 +13,7 @@
 				{{ block.type !== blockTypeEnum.WALL ? block.strength : '' }}
 			</template>
 			<template v-else-if="gridView === gridViewEnum.ELEVATION">
-				{{ block.type !== blockTypeEnum.WALL ? block.elevation : '' }}
+				{{ block.elevation }}
 			</template>
 		</div>
 	</div>
@@ -72,29 +72,24 @@
 						blocks[y][x] = { strength: 0, type: blockTypeEnum.NORMAL, elevation }
 					}
 				}
-				return this.calculateLighting(blocks)
+				return this.gridView === gridViewEnum.LIGHT ? this.calculateLighting(blocks) : blocks.flat()
 			},
 			gridLayout() {
 				return {
 					gridTemplateColumns: `repeat(${this.width}, 1.2rem)`
 				}
 			},
-			lightCoordinates() {
-				const lightCoordinatesMap = {}
-				for (const light of this.lights) {
-					lightCoordinatesMap[this.coordinatesToIndex(light.x, light.y)] = light
-				}
-				return lightCoordinatesMap
-			},
-			wallCoordinates() {
-				const wallCoordinatesMap = {}
-				for (const wall of this.walls) {
-					wallCoordinatesMap[this.coordinatesToIndex(wall.x, wall.y)] = wall
-				}
-				return wallCoordinatesMap
-			}
 		},
 		methods: {
+			// Returns object with [key] -> [value] pairs of [entity coordinate index] -> [entity] for specified entity
+			// list, e.g. `lights` or `walls`
+			getEntityIndexMap(entityListPropName) {
+				const indexMap = {}
+				for (const entity of this[entityListPropName]) {
+					indexMap[this.coordinatesToIndex(entity.x, entity.y)] = entity
+				}
+				return indexMap
+			},
 			calculateLighting(blocks) {
 				// TODO: Find ways to make this more efficient
 				this.processed = 0
@@ -107,8 +102,9 @@
 
 				const queue = []
 
+				// Add walls first so they interfere with lighting
 				for (const wall of this.walls) {
-					queue.push({ type: blockTypeEnum.WALL, x: wall.x, y: wall.y, elevation: 99 }) // TODO: Handle elevation differently
+					queue.push({ ...wall, type: blockTypeEnum.WALL })
 				}
 
 				for (const light of this.lights) {
@@ -119,15 +115,18 @@
 
 				while (currentBlock) {
 					this.processed++
-					const {x, y, elevation, type} = currentBlock
+					const {x, y, type} = currentBlock
+
+					// Extract elevation from the underlying grid - entities such as lights will adopt this elevation
+					currentBlock.elevation = blocks[y][x].elevation
 
 					if (type === blockTypeEnum.WALL) {
 						this.updated++
-						blocks[y][x] = { type, elevation }
+						blocks[y][x] = { ...blocks[y][x], type }
 					} else if (blocks[y][x].strength < currentBlock.strength) {
 						this.updated++
 						const strength = currentBlock.strength
-						blocks[y][x] = { strength, type, elevation }
+						blocks[y][x] = { ...blocks[y][x], type, strength }
 						if (strength > 1) {
 							// Update neighbors starting at top and going clockwise
 							updateNeighbor(blocks, queue, x, y - 1, y > 0, currentBlock)
@@ -145,11 +144,12 @@
 				return blocks.flat()
 
 				function updateNeighbor(blocks, queue, x, y, condition, currentBlock) {
+					// Only try to update block[y][x] if it's not already brighter than `currentBlock` could make it
 					if (condition && blocks[y][x].strength < currentBlock.strength - 1) {
 						const nextElevation = blocks[y][x].elevation
 						const dElevation = Math.abs(nextElevation - currentBlock.elevation)
 						const nextStrength = currentBlock.strength - 1 - dElevation
-						if (nextStrength > 1 && nextStrength > blocks[y][x].strength) {
+						if (nextStrength > 0 && nextStrength > blocks[y][x].strength) {
 							queue.push({
 								x,
 								y,
@@ -163,43 +163,44 @@
 			},
 
 			clicked(index) {
-				// TODO: Make this less ugly
-				const coordinates = this.indexToCoordinates(index)
+				let coordinates = this.indexToCoordinates(index)
 				switch (this.gridView) {
 					case gridViewEnum.LIGHT:
-						switch (this.control) {
-							case blockTypeEnum.LIGHT:
-								if (this.isLight(index)) {
-									this.$emit('remove-light', coordinates)
-								} else {
-									this.$emit('add-light', coordinates)
-									if (this.isWall(index)) {
-										this.$emit('remove-wall', coordinates)
-									}
-								}
-								break
-							case blockTypeEnum.WALL:
-								if (this.isWall(index)) {
-									this.$emit('remove-wall', coordinates)
-								} else {
-									this.$emit('add-wall', coordinates)
-									if (this.isLight(index)) {
-										this.$emit('remove-light', coordinates)
-									}
-								}
-								break
+						// TODO: Still ugly :(
+						const lightViewEventHelpers = {
+							[blockTypeEnum.LIGHT]: {
+								targetObjectExistsAtCoordinates: this.isBlockType(blockTypeEnum.LIGHT, index),
+								replaceableObjectExistsAtCoordinates: this.isBlockType(blockTypeEnum.WALL, index),
+								targetObjectName: 'light',
+								replaceableObjectName: 'wall'
+							},
+							[blockTypeEnum.WALL]: {
+								targetObjectExistsAtCoordinates: this.isBlockType(blockTypeEnum.WALL, index),
+								replaceableObjectExistsAtCoordinates: this.isBlockType(blockTypeEnum.LIGHT, index),
+								targetObjectName: 'wall',
+								replaceableObjectName: 'light'
+							}
+						}
+						const helper = lightViewEventHelpers[this.control]
+						if (helper.targetObjectExistsAtCoordinates) {
+							this.$emit(`remove-${helper.targetObjectName}`, coordinates)
+						} else {
+							if (helper.replaceableObjectExistsAtCoordinates) {
+								this.$emit(`remove-${helper.replaceableObjectName}`, coordinates)
+							}
+							this.$emit(`add-${helper.targetObjectName}`, coordinates)
 						}
 						break
+
 					case gridViewEnum.ELEVATION:
 						this.$emit('increase-elevation', coordinates)
 						break
 				}
 			},
 			blockStyle(block) {
-				const lightClass = `light-${block.strength}`
-				const elevationClass = `elevation-${block.elevation > 3 ? 3 : block.elevation}`
 				switch (this.gridView) {
 					case gridViewEnum.LIGHT:
+						const lightClass = `light-${block.strength}`
 						return {
 							light: block.type === blockTypeEnum.LIGHT,
 							[lightClass]: block.type !== blockTypeEnum.WALL,
@@ -207,6 +208,7 @@
 							danger: block.type !== blockTypeEnum.WALL && block.strength < 8
 						}
 					case gridViewEnum.ELEVATION:
+						const elevationClass = `elevation-${block.elevation > 3 ? 3 : block.elevation}`
 						return {
 							elevation: true,
 							[elevationClass]: true
@@ -222,11 +224,17 @@
 			coordinatesToIndex(x, y) {
 				return x + (y * this.width)
 			},
-			isLight(index) {
-				return !!this.lightCoordinates[index]
-			},
-			isWall(index) {
-				return !!this.wallCoordinates[index]
+			isBlockType(blockType, index) {
+				const propNames = {
+					[blockTypeEnum.LIGHT]: 'lights',
+					[blockTypeEnum.WALL]: 'walls'
+				}
+				const propName = propNames[blockType]
+				if (propName) {
+					return !!this.getEntityIndexMap(propName)[index]
+				} else {
+					return false
+				}
 			},
 			mouseDown(index) {
 				this.dragging = true
@@ -235,14 +243,14 @@
 					case gridViewEnum.LIGHT:
 						switch (this.control) {
 							case blockTypeEnum.LIGHT:
-								if (this.isLight(index)) {
+								if (this.isBlockType(blockTypeEnum.LIGHT, index)) {
 									this.dragBehavior = dragBehaviorEnum.REMOVE_LIGHT
 								} else {
 									this.dragBehavior = dragBehaviorEnum.ADD_LIGHT
 								}
 								break
 							case blockTypeEnum.WALL:
-								if (this.isWall(index)) {
+								if (this.isBlockType(blockTypeEnum.WALL, index)) {
 									this.dragBehavior = dragBehaviorEnum.REMOVE_WALL
 								} else {
 									this.dragBehavior = dragBehaviorEnum.ADD_WALL
@@ -273,22 +281,22 @@
 						this.dragHistory.push(index)
 						switch (this.dragBehavior) {
 							case dragBehaviorEnum.ADD_LIGHT:
-								if (!this.isLight(index)) {
+								if (!this.isBlockType(blockTypeEnum.LIGHT, index)) {
 									this.clicked(index)
 								}
 								break
 							case dragBehaviorEnum.REMOVE_LIGHT:
-								if (this.isLight(index)) {
+								if (this.isBlockType(blockTypeEnum.LIGHT, index)) {
 									this.clicked(index)
 								}
 								break
 							case dragBehaviorEnum.ADD_WALL:
-								if (!this.isWall(index)) {
+								if (!this.isBlockType(blockTypeEnum.WALL, index)) {
 									this.clicked(index)
 								}
 								break
 							case dragBehaviorEnum.REMOVE_WALL:
-								if (this.isWall(index)) {
+								if (this.isBlockType(blockTypeEnum.WALL, index)) {
 									this.clicked(index)
 								}
 								break
