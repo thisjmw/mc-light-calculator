@@ -1,84 +1,32 @@
 <template>
 	<div id="app">
-		<LightGridControlSelector
-			@change-control="changeControl"
-			@change-view="changeView"
-			@reset="reset"
-		/>
-		<LightGrid
-			:width="gridWidth"
-			:height="gridHeight"
-			:lights="lights"
-			:walls="walls"
-			:elevations="elevations"
-			:control="controlType"
-			:grid-view="gridView"
-			@add-light="addLight"
-			@remove-light="removeLight"
-			@add-wall="addWall"
-			@remove-wall="removeWall"
-			@increase-elevation="increaseElevation"
-			@reset="reset"
-		/>
+		<div class="header no-select" @click="toggleControl">
+			<page-header :show-controls="showControls" />
+		</div>
+		<div class="content">
+			<light-calculator :show-controls="showControls" />
+		</div>
 	</div>
 </template>
 
 <script>
-	import LightGrid from './components/LightGrid'
-	import LightGridControlSelector from './components/LightGridControlSelector'
-	import {
-		blockTypeEnum,
-		gridViewEnum
-	} from './data'
+	import LightCalculator from './components/LightCalculator'
+	import PageHeader from './components/PageHeader'
 
 	export default {
 		name: 'App',
 		components: {
-			LightGrid,
-			LightGridControlSelector
+			PageHeader,
+			LightCalculator
 		},
 		data() {
 			return {
-				lights: [],
-				walls: [],
-				elevations: {},
-				gridWidth: 40,
-				gridHeight: 40,
-				controlType: blockTypeEnum.LIGHT,
-				gridView: gridViewEnum.LIGHT
+				showControls: true
 			}
 		},
 		methods: {
-			addLight(coordinates) {
-				this.lights.push({ x: coordinates.x, y: coordinates.y, strength: 14 })
-			},
-			removeLight(coordinates) {
-				this.lights = this.lights.filter(light => !(light.x === coordinates.x && light.y === coordinates.y))
-			},
-			addWall(coordinates) {
-				this.walls.push({ x: coordinates.x, y: coordinates.y })
-			},
-			removeWall(coordinates) {
-				this.walls = this.walls.filter(wall => !(wall.x === coordinates.x && wall.y === coordinates.y))
-			},
-			increaseElevation(coordinates) {
-				const key = `${coordinates.x},${coordinates.y}`
-				if (this.elevations[key]) {
-					this.elevations[key]++
-				} else {
-					this.$set(this.elevations, key, 1)
-				}
-			},
-			reset() {
-				this.lights = []
-				this.walls = []
-				this.elevations = {}
-			},
-			changeControl(controlType) {
-				this.controlType = controlType
-			},
-			changeView(view) {
-				this.gridView = view
+			toggleControl() {
+				this.showControls = !this.showControls
 			}
 		}
 	}
@@ -89,5 +37,36 @@
 		font-family: Avenir,Helvetica, Arial, sans-serif;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
+		display: flex;
+		flex-flow: column;
+		height: 100%;
 	}
+
+	.no-select {
+		-webkit-touch-callout: none;
+		-webkit-user-select: none;
+		-khtml-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
+		user-select: none;
+	}
+
+	/*
+		App layout:
+		https://stackoverflow.com/a/24979148
+	*/
+
+	.header {
+		flex: 0 1 auto;
+		cursor: pointer;
+	}
+
+	.content {
+		flex: 1 1 auto;
+		background-color: #5E5E5E;
+	}
+
+	/*.footer {*/
+	/*	flex: 0 1 40px;*/
+	/*}*/
 </style>

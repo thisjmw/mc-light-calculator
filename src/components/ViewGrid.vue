@@ -1,7 +1,7 @@
 <template>
 	<div class="grid-container" :style="gridLayout" @mouseleave="mouseLeft">
 		<div
-			class="block"
+			class="block no-select"
 			:class="blockStyle(block)"
 			v-for="(block, index) in grid"
 			:key="index"
@@ -23,6 +23,7 @@
 	import {
 		blockTypeEnum,
 		gridViewEnum,
+		controlTypeEnum,
 		dragBehaviorEnum
 	} from '../data'
 
@@ -33,7 +34,7 @@
 			'remove-light',
 			'add-wall',
 			'remove-wall',
-			'increase-elevation'
+			'change-elevation'
 		],
 		props: {
 			width: {
@@ -47,7 +48,7 @@
 			lights: Array,
 			walls: Array,
 			elevations: Object,
-			control: Number, // blockTypeEnum
+			control: Number, // controlTypeEnum
 			gridView: Number // gridViewEnum
 		},
 		data() {
@@ -168,13 +169,13 @@
 					case gridViewEnum.LIGHT:
 						// TODO: Still ugly :(
 						const lightViewEventHelpers = {
-							[blockTypeEnum.LIGHT]: {
+							[controlTypeEnum.LIGHT]: {
 								targetObjectExistsAtCoordinates: this.isBlockType(blockTypeEnum.LIGHT, index),
 								replaceableObjectExistsAtCoordinates: this.isBlockType(blockTypeEnum.WALL, index),
 								targetObjectName: 'light',
 								replaceableObjectName: 'wall'
 							},
-							[blockTypeEnum.WALL]: {
+							[controlTypeEnum.WALL]: {
 								targetObjectExistsAtCoordinates: this.isBlockType(blockTypeEnum.WALL, index),
 								replaceableObjectExistsAtCoordinates: this.isBlockType(blockTypeEnum.LIGHT, index),
 								targetObjectName: 'wall',
@@ -193,7 +194,7 @@
 						break
 
 					case gridViewEnum.ELEVATION:
-						this.$emit('increase-elevation', coordinates)
+						this.$emit('change-elevation', coordinates)
 						break
 				}
 			},
@@ -242,14 +243,14 @@
 				switch (this.gridView) {
 					case gridViewEnum.LIGHT:
 						switch (this.control) {
-							case blockTypeEnum.LIGHT:
+							case controlTypeEnum.LIGHT:
 								if (this.isBlockType(blockTypeEnum.LIGHT, index)) {
 									this.dragBehavior = dragBehaviorEnum.REMOVE_LIGHT
 								} else {
 									this.dragBehavior = dragBehaviorEnum.ADD_LIGHT
 								}
 								break
-							case blockTypeEnum.WALL:
+							case controlTypeEnum.WALL:
 								if (this.isBlockType(blockTypeEnum.WALL, index)) {
 									this.dragBehavior = dragBehaviorEnum.REMOVE_WALL
 								} else {
@@ -324,12 +325,7 @@
 		text-align: center;
 		font-size: 0.8rem;
 		line-height: 1.2rem;
-		-webkit-touch-callout: none;
-		-webkit-user-select: none;
-		-khtml-user-select: none;
-		-moz-user-select: none;
-		-ms-user-select: none;
-		user-select: none;
+		vertical-align: middle;
 	}
 
 	.wall {

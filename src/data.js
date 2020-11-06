@@ -9,6 +9,13 @@ export const gridViewEnum = {
 	ELEVATION: 2
 }
 
+export const controlTypeEnum = {
+	LIGHT: 1,
+	WALL: 2,
+	INCREASE_ELEVATION: 3,
+	DECREASE_ELEVATION: 4
+}
+
 export const dragBehaviorEnum = {
 	NONE: 0,
 	ADD_LIGHT: 1,
